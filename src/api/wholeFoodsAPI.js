@@ -12,7 +12,8 @@ export async function findWholeFoodsProducts(ingredients, only365 = false) {
 
 async function matchIngredientToProducts(ingredient, only365 = false) {
   try {
-    const response = await fetch('http://localhost:3001/api/search-whole-foods', {
+    const API_URL = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${API_URL}/api/search-whole-foods`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ingredient })

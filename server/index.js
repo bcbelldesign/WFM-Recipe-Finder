@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const { JSDOM } = require('jsdom');
+const path = require('path');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Simple in-memory cache for recipe images
 const imageCache = new Map();
@@ -435,6 +436,15 @@ app.get('/api/featured-recipes', async (req, res) => {
     res.json({ recipes: [] });
   }
 });
+
+// Serve static files from React build
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../dist')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Recipe scraper server running on http://localhost:${PORT}`);

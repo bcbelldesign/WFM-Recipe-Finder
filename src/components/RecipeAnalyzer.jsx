@@ -15,7 +15,8 @@ function RecipeAnalyzer() {
   const [selectedItems, setSelectedItems] = useState(new Set());
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/featured-recipes')
+    const API_URL = import.meta.env.VITE_API_URL || '';
+    fetch(`${API_URL}/api/featured-recipes`)
       .then(res => res.json())
       .then(data => setFeaturedRecipes(data.recipes || []))
       .catch(err => console.error('Failed to load featured recipes:', err));
@@ -33,7 +34,8 @@ function RecipeAnalyzer() {
     setRecipeData(null);
     
     try {
-      const response = await fetch('http://localhost:3001/api/search-recipes', {
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_URL}/api/search-recipes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: searchQuery })
@@ -370,7 +372,8 @@ function RecipeAnalyzer() {
 }
 
 async function extractRecipe(url) {
-  const response = await fetch('http://localhost:3001/api/scrape-recipe', {
+  const API_URL = import.meta.env.VITE_API_URL || '';
+  const response = await fetch(`${API_URL}/api/scrape-recipe`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

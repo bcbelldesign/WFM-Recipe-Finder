@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: recipe-analyzer
+    env: node
+    buildCommand: ./render-build.sh
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
