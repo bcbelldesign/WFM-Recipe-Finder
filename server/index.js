@@ -299,11 +299,17 @@ app.post('/api/search-recipes', async (req, res) => {
     
     const response = await fetch(searchUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive'
+      },
+      timeout: 10000
     });
     
+    console.log('Search response status:', response.status);
     if (!response.ok) {
+      console.error(`HTTP error! status: ${response.status}`);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
@@ -384,13 +390,24 @@ app.get('/api/featured-recipes', async (req, res) => {
     
     const response = await fetch(recipesUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      },
+      timeout: 10000
     });
     
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    console.log('Featured recipes response status:', response.status);
+    if (!response.ok) {
+      console.error(`HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const html = await response.text();
+    console.log('Featured recipes HTML length:', html.length);
     const dom = new JSDOM(html);
     const doc = dom.window.document;
     
@@ -442,11 +459,17 @@ app.get('/api/featured-recipes', async (req, res) => {
     }));
     
     console.log(`Returning ${recipes.length} featured recipes`);
+    
+    if (recipes.length === 0) {
+      console.warn('No featured recipes found, returning empty array');
+    }
+    
     res.json({ recipes });
     
   } catch (error) {
-    console.error('Featured recipes error:', error);
-    res.json({ recipes: [] });
+    console.error('Featured recipes error:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ recipes: [], error: error.message });
   }
 });
 
