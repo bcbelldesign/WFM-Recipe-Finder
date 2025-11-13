@@ -3,6 +3,7 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 const { JSDOM } = require('jsdom');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,6 +13,18 @@ const imageCache = new Map();
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from React build FIRST
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.join(process.cwd(), 'build');
+  console.log('Current working directory:', process.cwd());
+  console.log('Build path:', buildPath);
+  console.log('Build folder exists:', fs.existsSync(buildPath));
+  if (fs.existsSync(buildPath)) {
+    console.log('Build folder contents:', fs.readdirSync(buildPath));
+  }
+  app.use(express.static(buildPath));
+}
 
 app.post('/api/scrape-recipe', async (req, res) => {
   const { url } = req.body;
@@ -437,17 +450,17 @@ app.get('/api/featured-recipes', async (req, res) => {
   }
 });
 
-// Serve static files from React build
+// Catch-all route for React Router (only for non-API routes)
 if (process.env.NODE_ENV === 'production') {
-  const buildPath = path.join(process.cwd(), 'build');
-  console.log('Current working directory:', process.cwd());
-  console.log('Serving static files from:', buildPath);
-  app.use(express.static(buildPath));
-  
-  // Catch-all route for React Router (only for non-API routes)
   app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(buildPath, 'index.html'));
+    const buildPath = path.join(process.cwd(), 'build');
+    const indexPath = path.join(buildPath, 'index.html');
+    console.log('Serving index.html from:', indexPath);
+    console.log('File exists:', fs.existsSync(indexPath));
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Build files not found');
     }
   });
 }
