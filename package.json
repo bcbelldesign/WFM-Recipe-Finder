@@ -14,7 +14,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@amzn/harmony-react-tutorials": "^2.0.3",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.17.1",
@@ -24,7 +23,6 @@
     "web-vitals": "^2.1.4"
   },
   "devDependencies": {
-    "@amzn/harmony-types": "^1.0.36",
     "@testing-library/jest-dom": "^6.1.3",
     "@testing-library/react": "^14.0.0",
     "@types/react": "^18.2.15",
@@ -39,19 +37,5 @@
     "vite": "^4.4.5",
     "vitest": "^0.34.5"
   },
-  "harmony": {
-    "appName": "vibe-sandbox",
-    "jobCategories": [],
-    "headers": [
-      {
-        "name": "Content-Security-Policy",
-        "value": "DEFAULT"
-      }
-    ]
-  },
-  "harmony-version": "1.7.172",
-  "homepage": "/vibe-sandbox/",
-  "displayName": "Vibe Sandbox",
-  "description": "Providing an inclusive guide to getting anyone interested in getting set up for local development",
-  "bindleId": "amzn1.bindle.resource.e5qp7wnxzrr2zbpmprba"
+  "description": "Recipe finder with Whole Foods integration"
 }
