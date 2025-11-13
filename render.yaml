@@ -2,7 +2,7 @@ services:
   - type: web
     name: recipe-analyzer
     env: node
-    buildCommand: ./render-build.sh
+    buildCommand: npm install && npm run build && cd server && npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
