@@ -439,7 +439,8 @@ app.get('/api/featured-recipes', async (req, res) => {
 
 // Serve static files from React build
 if (process.env.NODE_ENV === 'production') {
-  const buildPath = path.join(__dirname, '..', 'build');
+  const buildPath = path.join(process.cwd(), 'build');
+  console.log('Current working directory:', process.cwd());
   console.log('Serving static files from:', buildPath);
   app.use(express.static(buildPath));
   
