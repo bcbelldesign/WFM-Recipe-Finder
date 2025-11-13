@@ -439,11 +439,15 @@ app.get('/api/featured-recipes', async (req, res) => {
 
 // Serve static files from React build
 if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '..', 'dist');
-  app.use(express.static(distPath));
+  const buildPath = path.join(__dirname, '..', 'build');
+  console.log('Serving static files from:', buildPath);
+  app.use(express.static(buildPath));
   
+  // Catch-all route for React Router (only for non-API routes)
   app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(buildPath, 'index.html'));
+    }
   });
 }
 

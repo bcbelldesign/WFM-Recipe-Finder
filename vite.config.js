@@ -13,10 +13,7 @@ export default defineConfig({
   build: {
     outDir: "build",
   },
-  base: 
-    process.env.NODE_ENV === "production"
-      ? "/vibe-sandbox/"
-      : "/",
+  base: "/",
   test: {
     environment: "jsdom",
     setupFiles: ['./tests/setup.js'],
