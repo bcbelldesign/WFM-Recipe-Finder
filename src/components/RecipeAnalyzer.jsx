@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { findWholeFoodsProducts } from '../api/wholeFoodsAPI';
+import { findWholeFoodsProducts, validateProductAvailability } from '../api/wholeFoodsAPI';
 import './RecipeAnalyzer.css';
 
 function RecipeAnalyzer() {
@@ -69,10 +69,11 @@ function RecipeAnalyzer() {
     try {
       const result = await extractRecipe(url);
       const products = await findWholeFoodsProducts(result.ingredients, only365);
+      const validatedProducts = await validateProductAvailability(products);
       
       setRecipeData({
         ...result,
-        products,
+        products: validatedProducts,
         url
       });
       
@@ -334,12 +335,13 @@ function RecipeAnalyzer() {
 
               <div className="ingredient-cards">
                 {recipeData.products.map((product, index) => (
-                  <div key={index} className={`ingredient-card ${selectedItems.has(index) ? 'selected' : ''}`}>
+                  <div key={index} className={`ingredient-card ${selectedItems.has(index) ? 'selected' : ''} ${!product.available ? 'unavailable' : ''}`}>
                     <input
                       type="checkbox"
                       checked={selectedItems.has(index)}
                       onChange={() => toggleItem(index)}
                       className="ingredient-checkbox"
+                      disabled={!product.available}
                     />
                     <div className="ingredient-info">
                       <a href={product.amazonUrl} target="_blank" rel="noopener noreferrer" className="ingredient-name">{product.name}</a>

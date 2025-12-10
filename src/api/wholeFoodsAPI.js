@@ -274,3 +274,25 @@ function getProducts(category, only365 = false) {
     amazonUrl: product.productUrl
   }));
 }
+
+export async function validateProductAvailability(products) {
+  const API_URL = import.meta.env.VITE_API_URL || '';
+  
+  const validatedProducts = await Promise.all(
+    products.map(async (product) => {
+      try {
+        const response = await fetch(`${API_URL}/api/validate-product-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: product.amazonUrl })
+        });
+        const { available } = await response.json();
+        return { ...product, available };
+      } catch (error) {
+        return { ...product, available: true };
+      }
+    })
+  );
+  
+  return validatedProducts;
+}

@@ -286,6 +286,22 @@ app.post('/api/search-whole-foods', async (req, res) => {
   }
 });
 
+app.post('/api/validate-product-url', async (req, res) => {
+  const { url } = req.body;
+  try {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      redirect: 'follow',
+      timeout: 5000
+    });
+    const finalUrl = response.url;
+    const isAvailable = !finalUrl.includes('/search?text=');
+    res.json({ available: isAvailable });
+  } catch (error) {
+    res.json({ available: false });
+  }
+});
+
 app.post('/api/search-recipes', async (req, res) => {
   const { query } = req.body;
   

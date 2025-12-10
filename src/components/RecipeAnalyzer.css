@@ -402,6 +402,21 @@
   cursor: not-allowed;
 }
 
+.ingredient-card.unavailable {
+  opacity: 0.5;
+  background: #f5f5f5;
+  border-color: #d0d0d0;
+}
+
+.ingredient-card.unavailable .ingredient-name {
+  color: #999;
+  text-decoration: line-through;
+}
+
+.ingredient-card.unavailable .ingredient-checkbox {
+  cursor: not-allowed;
+}
+
 @media (max-width: 1024px) {
   .recipe-layout {
     grid-template-columns: 1fr;
