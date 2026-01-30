@@ -175,6 +175,113 @@ function extractInstructions(recipeInstructions) {
   return [];
 }
 
+// Batch search - much faster than individual calls
+app.post('/api/search-whole-foods-batch', async (req, res) => {
+  const { ingredients } = req.body;
+  if (!ingredients || !Array.isArray(ingredients)) {
+    return res.status(400).json({ error: 'Ingredients array required' });
+  }
+
+  try {
+    const browser = await puppeteer.launch({ 
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const results = await Promise.all(ingredients.map(async (ingredient) => {
+      const page = await browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      
+      try {
+        const clean = cleanIngredientName(ingredient);
+        const searchUrl = `https://www.wholefoodsmarket.com/grocery/search?k=${encodeURIComponent(clean)}`;
+        
+        console.log(`Searching: ${clean}`);
+        await page.goto(searchUrl, { waitUntil: 'networkidle0', timeout: 20000 });
+        
+        const hasProducts = await page.waitForSelector('a[href*="/grocery/product/"]', { timeout: 8000 }).then(() => true).catch(() => false);
+        
+        if (!hasProducts) {
+          console.log(`No products found for: ${clean}`);
+          await page.close();
+          return { ingredient, product: { name: clean, price: 4.99, image: '', url: searchUrl, available: true, amazonUrl: searchUrl } };
+        }
+        
+        const productUrl = await page.evaluate(() => {
+          const link = document.querySelector('a[href*="/grocery/product/"]');
+          return link ? link.href : null;
+        });
+        
+        if (!productUrl) {
+          console.log(`No product link found for: ${clean}`);
+          await page.close();
+          return { ingredient, product: { name: clean, price: 4.99, image: '', url: searchUrl, available: false, amazonUrl: searchUrl } };
+        }
+        
+        console.log(`Loading product: ${productUrl}`);
+        await page.goto(productUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await new Promise(r => setTimeout(r, 1500));
+        
+        const product = await page.evaluate(() => {
+          let name = '', price = '', image = '';
+          
+          const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+          for (const script of scripts) {
+            try {
+              const data = JSON.parse(script.textContent);
+              if (data['@type'] === 'Product') {
+                name = data.name || '';
+                image = data.image || '';
+                if (data.offers?.price) price = data.offers.price;
+              }
+            } catch (e) {}
+          }
+          
+          if (!name) name = document.querySelector('meta[property="og:title"]')?.content || document.querySelector('h1')?.textContent?.trim() || '';
+          name = name.replace(/[\|\-]?\s*(grocery pickup|delivery|whole foods market|whole foods).*$/i, '').trim();
+          if (!image) image = document.querySelector('meta[property="og:image"]')?.content || document.querySelector('img[src*="product"]')?.src || '';
+          if (!price) {
+            const priceEl = document.querySelector('[data-testid*="price"], [class*="price"]');
+            const match = priceEl?.textContent?.match(/\$?([\d]+\.?[\d]{0,2})/);
+            price = match ? match[1] : '';
+          }
+          
+          return { name, price, image };
+        });
+        
+        product.url = productUrl;
+        await page.close();
+        
+        if (product && product.name && product.name.length > 2) {
+          console.log(`Found: ${product.name} - $${product.price}`);
+          return { ingredient, product: { ...product, price: parseFloat(product.price) || 4.99, available: true, amazonUrl: product.url } };
+        }
+        console.log(`No product found for: ${clean}`);
+        return { ingredient, product: { name: clean, price: 4.99, image: '', url: searchUrl, available: true, amazonUrl: searchUrl } };
+      } catch (e) {
+        console.error(`Error searching ${ingredient}:`, e.message);
+        await page.close().catch(() => {});
+        return { ingredient, product: { name: ingredient, price: 4.99, image: '', url: '', available: true, amazonUrl: '' } };
+      }
+    }));
+
+    await browser.close();
+    res.json({ results });
+  } catch (error) {
+    console.error('Batch search error:', error);
+    res.status(500).json({ error: 'Batch search failed' });
+  }
+});
+
+function cleanIngredientName(ingredient) {
+  let clean = ingredient.toLowerCase()
+    .replace(/^\d+[\s\-]*/, '').replace(/\d+\/\d+/g, '').replace(/\([^)]*\)/g, '')
+    .replace(/\*+/g, '').replace(/,.*$/, '');
+  const stopWords = ['cup','cups','tablespoon','tablespoons','tbsp','teaspoon','teaspoons','tsp','pound','pounds','lb','lbs','ounce','ounces','oz','of','to','for','fresh','dried','chopped','sliced','diced','minced','large','medium','small'];
+  const words = clean.split(/\s+/).filter(w => w.replace(/[^a-z]/g,'').length > 2 && !stopWords.includes(w.replace(/[^a-z]/g,'')));
+  return words.join(' ').trim() || 'ingredient';
+}
+
 app.post('/api/search-whole-foods', async (req, res) => {
   const { ingredient } = req.body;
   
@@ -228,31 +335,51 @@ app.post('/api/search-whole-foods', async (req, res) => {
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      const product = await page.evaluate(() => {
-        const productLinks = document.querySelectorAll('a[href*="/grocery/product/"]');
-        if (productLinks.length === 0) return null;
-        
-        const firstLink = productLinks[0];
-        const url = firstLink.href;
-        
-        let container = firstLink;
-        for (let i = 0; i < 5; i++) {
-          container = container.parentElement;
-          if (!container) break;
-        }
-        
-        const allText = container ? container.innerText : '';
-        const lines = allText.split('\n').filter(line => line.trim().length > 3 && line.trim().length < 100);
-        const name = lines[0] || 'Product';
-        
-        const priceMatch = allText.match(/\$([\d.]+)/);
-        const price = priceMatch ? priceMatch[1] : '4.99';
-        
-        const img = container ? container.querySelector('img') : null;
-        const image = img ? img.src : '';
-        
-        return { name, price, image, url };
+      // Get first product link from search results
+      const productUrl = await page.evaluate(() => {
+        const link = document.querySelector('a[href*="/grocery/product/"]');
+        return link ? link.href : null;
       });
+      
+      let product = null;
+      
+      if (productUrl) {
+        console.log('Navigating to product page:', productUrl);
+        await page.goto(productUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Extract from JSON-LD or meta tags
+        product = await page.evaluate(() => {
+          let name = '', price = '', image = '';
+          
+          // Try JSON-LD first
+          const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+          for (const script of scripts) {
+            try {
+              const data = JSON.parse(script.textContent);
+              if (data['@type'] === 'Product') {
+                name = data.name || '';
+                image = data.image || '';
+                if (data.offers?.price) price = data.offers.price;
+              }
+            } catch (e) {}
+          }
+          
+          // Fallback to meta tags
+          if (!name) name = document.querySelector('meta[property="og:title"]')?.content || document.querySelector('h1')?.textContent?.trim() || '';
+          name = name.replace(/[\|\-]?\s*(grocery pickup|delivery|whole foods market|whole foods).*$/i, '').trim();
+          if (!image) image = document.querySelector('meta[property="og:image"]')?.content || '';
+          if (!price) {
+            const priceEl = document.querySelector('[class*="price"]');
+            const priceMatch = priceEl?.textContent?.match(/\$([\d.]+)/);
+            price = priceMatch ? priceMatch[1] : '';
+          }
+          
+          return { name, price, image };
+        });
+        
+        product.url = productUrl;
+      }
       
       await browser.close();
       
