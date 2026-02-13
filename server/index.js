@@ -202,7 +202,7 @@ app.post('/api/search-whole-foods-batch', async (req, res) => {
         const hasProducts = await page.waitForSelector('a[href*="/grocery/product/"]', { timeout: 8000 }).then(() => true).catch(() => false);
         
         if (!hasProducts) {
-          console.log(`No products found for: ${clean}`);
+          console.log(`❌ No products found for: ${clean}`);
           await page.close();
           return { ingredient, product: { name: clean, price: 4.99, image: '', url: searchUrl, available: true, amazonUrl: searchUrl } };
         }
@@ -213,38 +213,66 @@ app.post('/api/search-whole-foods-batch', async (req, res) => {
         });
         
         if (!productUrl) {
-          console.log(`No product link found for: ${clean}`);
+          console.log(`❌ No product link for: ${clean}`);
           await page.close();
           return { ingredient, product: { name: clean, price: 4.99, image: '', url: searchUrl, available: false, amazonUrl: searchUrl } };
         }
         
-        console.log(`Loading product: ${productUrl}`);
+        console.log(`✓ Navigating to: ${productUrl}`);
         await page.goto(productUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
         await new Promise(r => setTimeout(r, 1500));
         
         const product = await page.evaluate(() => {
           let name = '', price = '', image = '';
           
-          const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-          for (const script of scripts) {
-            try {
-              const data = JSON.parse(script.textContent);
-              if (data['@type'] === 'Product') {
-                name = data.name || '';
-                image = data.image || '';
-                if (data.offers?.price) price = data.offers.price;
+          // Try aapiData from script tags
+          try {
+            const scripts = document.querySelectorAll('script');
+            for (const script of scripts) {
+              const text = script.textContent || '';
+              if (text.includes('aapiData')) {
+                const match = text.match(/"aapiData":\s*\{[^}]*"name":\s*"([^"]+)"/);
+                if (match && match[1]) {
+                  name = match[1];
+                  break;
+                }
               }
-            } catch (e) {}
+            }
+          } catch (e) {}
+          
+          // Fallback to DOM selectors for name
+          if (!name) {
+            name = document.querySelector('.bds--heading-1')?.textContent?.trim() || 
+                   document.querySelector('h1')?.textContent?.trim() || 
+                   document.querySelector('[data-testid="product-title"]')?.textContent?.trim() || '';
+          }
+          name = name.replace(/[\|\-]?\s*(grocery pickup|delivery|whole foods market|whole foods).*$/i, '').trim();
+          
+          // Extract price with multiple fallbacks
+          const priceSelectors = [
+            '.bds--heading-4',
+            '[data-testid="product-price"]',
+            '[data-testid*="price"]',
+            'span[class*="price"]',
+            'div[class*="price"]'
+          ];
+          
+          for (const sel of priceSelectors) {
+            const el = document.querySelector(sel);
+            if (el) {
+              const text = el.textContent || '';
+              const match = text.match(/([\d]+\.?[\d]{0,2})/);
+              if (match && parseFloat(match[1]) > 0) {
+                price = match[1];
+                break;
+              }
+            }
           }
           
-          if (!name) name = document.querySelector('meta[property="og:title"]')?.content || document.querySelector('h1')?.textContent?.trim() || '';
-          name = name.replace(/[\|\-]?\s*(grocery pickup|delivery|whole foods market|whole foods).*$/i, '').trim();
-          if (!image) image = document.querySelector('meta[property="og:image"]')?.content || document.querySelector('img[src*="product"]')?.src || '';
-          if (!price) {
-            const priceEl = document.querySelector('[data-testid*="price"], [class*="price"]');
-            const match = priceEl?.textContent?.match(/\$?([\d]+\.?[\d]{0,2})/);
-            price = match ? match[1] : '';
-          }
+          // Extract image
+          const imgEl = document.querySelector('img[src*="media-amazon.com"]') ||
+                        document.querySelector('main img');
+          if (imgEl) image = imgEl.src || '';
           
           return { name, price, image };
         });
@@ -252,11 +280,13 @@ app.post('/api/search-whole-foods-batch', async (req, res) => {
         product.url = productUrl;
         await page.close();
         
+        console.log(`Extracted - Name: "${product.name}", Price: $${product.price}, Image: ${product.image ? 'Yes' : 'No'}`);
+        
         if (product && product.name && product.name.length > 2) {
-          console.log(`Found: ${product.name} - $${product.price}`);
+          console.log(`✓ Success: ${product.name} - $${product.price}`);
           return { ingredient, product: { ...product, price: parseFloat(product.price) || 4.99, available: true, amazonUrl: product.url } };
         }
-        console.log(`No product found for: ${clean}`);
+        console.log(`❌ Failed to extract valid product for: ${clean}`);
         return { ingredient, product: { name: clean, price: 4.99, image: '', url: searchUrl, available: true, amazonUrl: searchUrl } };
       } catch (e) {
         console.error(`Error searching ${ingredient}:`, e.message);
